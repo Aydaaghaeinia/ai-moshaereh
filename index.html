@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مشاعره با هوش مصنوعی</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+        }
+        #game-log::-webkit-scrollbar { width: 8px; }
+        #game-log::-webkit-scrollbar-track { background: #f1f1f1; }
+        #game-log::-webkit-scrollbar-thumb { background: #888; border-radius: 4px; }
+        #game-log::-webkit-scrollbar-thumb:hover { background: #555; }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+    <div id="app-container" class="w-full max-w-2xl mx-auto bg-white shadow-2xl rounded-lg flex flex-col h-[90vh] p-4 relative">
+        <header class="text-center py-4 border-b">
+            <h1 class="text-2xl font-bold text-gray-800">مشاعره با هوش مصنوعی</h1>
+            <p id="score-label" class="text-lg font-semibold text-gray-600 mt-2">امتیاز: شما 0 - هوش مصنوعی 0</p>
+            <div class="absolute top-4 left-4 flex space-x-2">
+                <button id="new-game-button" class="text-gray-500 hover:text-blue-600 transition-colors" title="بازی جدید">
+                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 9a9 9 0 0114.13-5.13M20 15a9 9 0 01-14.13 5.13" />
+                    </svg>
+                </button>
+                <button id="settings-button" class="text-gray-500 hover:text-gray-800 transition-colors" title="تنظیمات کلید API">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main id="game-log" class="flex-grow p-4 overflow-y-auto my-4 bg-gray-50 rounded-md"></main>
+
+        <footer class="p-2 border-t">
+            <div class="flex items-center space-x-2 space-x-reverse">
+                <input type="text" id="input-box" placeholder="بیت خود را اینجا بنویسید..." class="flex-grow p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
+                <button id="idk-button" class="bg-orange-500 text-white font-bold p-3 rounded-lg hover:bg-orange-600 transition-colors" title="نمی‌دانم">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.546-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </button>
+                <button id="send-button" class="bg-blue-600 text-white font-bold py-3 px-5 rounded-lg hover:bg-blue-700 transition-colors duration-300 flex items-center justify-center">
+                    <span id="button-text">بفرست</span>
+                    <div id="loading-spinner" class="spinner hidden"></div>
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <div id="api-key-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-50">
+        <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md m-4">
+            <h2 class="text-xl font-bold mb-4">تنظیم کلید API</h2>
+            <p class="text-gray-600 mb-4">برای استفاده از بازی، به کلید API گوگل (Gemini) نیاز دارید. این کلید در مرورگر شما ذخیره می‌شود.</p>
+            <input type="password" id="api-key-input" placeholder="کلید API خود را اینجا وارد کنید" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <div class="flex justify-end space-x-2 space-x-reverse">
+                 <button id="cancel-api-key-button" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400">انصراف</button>
+                <button id="save-api-key-button" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">ذخیره کلید</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dom = {
+                scoreLabel: document.getElementById('score-label'),
+                gameLog: document.getElementById('game-log'),
+                inputBox: document.getElementById('input-box'),
+                sendButton: document.getElementById('send-button'),
+                idkButton: document.getElementById('idk-button'),
+                buttonText: document.getElementById('button-text'),
+                loadingSpinner: document.getElementById('loading-spinner'),
+                apiKeyModal: document.getElementById('api-key-modal'),
+                apiKeyInput: document.getElementById('api-key-input'),
+                saveApiKeyButton: document.getElementById('save-api-key-button'),
+                cancelApiKeyButton: document.getElementById('cancel-api-key-button'),
+                settingsButton: document.getElementById('settings-button'),
+                newGameButton: document.getElementById('new-game-button')
+            };
+
+            const state = {
+                playerScore: 0,
+                aiScore: 0,
+                usedVerses: new Set(),
+                lastStartingLetter: null,
+                apiKey: ''
+            };
+
+            /**
+             * Appends a message to the game log with appropriate styling.
+             * @param {string} message - The message content.
+             * @param {'user' | 'ai' | 'error' | 'system'} author - The author of the message.
+             */
+            function addLog(message, author) {
+                const wrapper = document.createElement('div');
+                let content = '';
+
+                switch (author) {
+                    case 'user':
+                        wrapper.className = 'flex justify-end mb-4';
+                        content = `<div class="bg-blue-500 text-white rounded-lg p-3 max-w-xs md:max-w-md break-words"><b>شما:</b> ${message}</div>`;
+                        break;
+                    case 'ai':
+                        wrapper.className = 'flex justify-start mb-4';
+                        content = `<div class="bg-gray-200 text-gray-800 rounded-lg p-3 max-w-xs md:max-w-md break-words"><b>هوش مصنوعی:</b> ${message.verse}<br><i class="text-sm text-gray-600">(شاعر: ${message.poet})</i></div>`;
+                        break;
+                    case 'error':
+                        wrapper.className = 'text-center mb-4';
+                        content = `<div class="text-red-600 font-bold">${message}</div>`;
+                        break;
+                    case 'system':
+                        wrapper.className = 'text-center mb-4';
+                        content = `<div class="text-gray-500 italic">${message}</div>`;
+                        break;
+                }
+                wrapper.innerHTML = content;
+                dom.gameLog.appendChild(wrapper);
+                dom.gameLog.scrollTop = dom.gameLog.scrollHeight;
+            }
+
+            /**
+             * Updates the score display on the UI.
+             */
+            function updateScore() {
+                dom.scoreLabel.textContent = `امتیاز: شما ${state.playerScore} - هوش مصنوعی ${state.aiScore}`;
+            }
+
+            /**
+             * Toggles the loading state of the send buttons.
+             * @param {boolean} isLoading - Whether to show the loading indicator.
+             */
+            function toggleLoading(isLoading) {
+                dom.sendButton.disabled = isLoading;
+                dom.idkButton.disabled = isLoading;
+                dom.buttonText.classList.toggle('hidden', isLoading);
+                dom.loadingSpinner.classList.toggle('hidden', !isLoading);
+            }
+            
+            /**
+             * A generic function to make API calls to the Gemini model.
+             * @param {string} prompt - The prompt to send to the model.
+             * @param {number} [temperature=0.7] - The creativity of the model.
+             * @param {string} [responseMimeType="text/plain"] - The expected response format.
+             * @returns {Promise<string>} The text response from the API.
+             */
+            async function makeApiCall(prompt, temperature = 0.7, responseMimeType = "text/plain") {
+                if (!state.apiKey) {
+                    throw new Error("کلید API تنظیم نشده است.");
+                }
+                const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${state.apiKey}`;
+                const payload = {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        "temperature": temperature,
+                        "responseMimeType": responseMimeType
+                    }
+                };
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    if (response.status === 503 || response.status === 429) {
+                        throw new Error("سرور هوش مصنوعی در حال حاضر شلوغ است. لطفا چند لحظه بعد دوباره تلاش کنید.");
+                    }
+                    const errorData = await response.json();
+                    throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data.candidates && data.candidates.length > 0) {
+                    return data.candidates[0].content.parts[0].text.trim();
+                }
+                if (data.promptFeedback?.blockReason) {
+                    throw new Error(`درخواست توسط هوش مصنوعی به دلیل ${data.promptFeedback.blockReason} مسدود شد.`);
+                }
+                throw new Error("پاسخ نامعتبر از API دریافت شد.");
+            }
+            
+            /**
+             * Checks if a given text is a valid line of Persian poetry.
+             * @param {string} verse - The text to validate.
+             * @returns {Promise<boolean>} True if the verse is valid, false otherwise.
+             */
+            async function isVerseValid(verse) {
+                addLog("در حال اعتبارسنجی بیت شعر شما...", "system");
+                const prompt = `You are a strict Persian literature expert. Your only task is to determine if the following text is a valid line of Persian poetry (a full 'beyt' or a single 'mesra'). Respond with ONLY "YES" or "NO". Text to analyze: "${verse}"`;
+                const response = await makeApiCall(prompt, 0.1);
+                return response.toUpperCase().includes("YES") || response.includes("بله");
+            }
+
+            /**
+             * Gets a new verse from the AI that starts with a specific letter.
+             * @param {string} startingLetter - The letter the verse should start with.
+             * @returns {Promise<{verse: string, poet: string}>} An object containing the verse and poet.
+             */
+            async function getAiVerse(startingLetter) {
+                const usedVersesText = Array.from(state.usedVerses).join("\n");
+                const prompt = `You are a Persian poetry expert for a game. Provide a famous Persian verse starting with the letter '${startingLetter}'. The verse must not be in this list:\n${usedVersesText}\nYou MUST respond with ONLY a valid JSON object in the format: {"verse": "the poetry line", "poet": "the poet's name"}.`;
+                
+                try {
+                    const responseText = await makeApiCall(prompt, 0.8, "application/json");
+                    const responseObject = JSON.parse(responseText);
+                    if (responseObject.verse && responseObject.poet) {
+                        return responseObject;
+                    }
+                } catch (error) {
+                     // The makeApiCall function already handles most errors, this is a fallback.
+                    console.error("Error getting or parsing AI verse:", error);
+                    return { verse: error.message, poet: "خطا" };
+                }
+                
+                // This should rarely be reached.
+                return { verse: "هوش مصنوعی نتوانست پاسخ مناسبی پیدا کند.", poet: "خطا" };
+            }
+
+            /**
+             * Handles the main logic for the user's turn.
+             */
+            async function handleUserTurn() {
+                const userVerse = dom.inputBox.value.trim();
+                if (!userVerse) return;
+
+                toggleLoading(true);
+                dom.inputBox.value = '';
+
+                try {
+                    if (!await isVerseValid(userVerse)) {
+                        throw new Error("این یک بیت شعر معتبر به نظر نمی‌رسد. لطفا دوباره تلاش کنید.");
+                    }
+                    if (state.lastStartingLetter && userVerse[0] !== state.lastStartingLetter) {
+                        throw new Error(`خطا! بیت شما باید با حرف «${state.lastStartingLetter}» شروع می‌شد.`);
+                    }
+                    if (state.usedVerses.has(userVerse)) {
+                        throw new Error("این بیت قبلا استفاده شده! لطفا یک بیت دیگر بگویید.");
+                    }
+
+                    addLog(userVerse, "user");
+                    state.usedVerses.add(userVerse);
+
+                    const lastChar = getLastLetter(userVerse);
+                    if (!lastChar) {
+                        throw new Error("بیت شما معتبر به نظر نمی‌رسد. لطفا دوباره تلاش کنید.");
+                    }
+
+                    state.playerScore += 10;
+                    updateScore();
+                    addLog(`...هوش مصنوعی برای حرف '${lastChar}' در حال فکر کردن است`, "system");
+
+                    const aiResponse = await getAiVerse(lastChar);
+                    handleAiResponse(aiResponse);
+
+                } catch (error) {
+                    addLog(error.message, "error");
+                } finally {
+                    toggleLoading(false);
+                }
+            }
+            
+            /**
+             * Handles the logic when the user gives up their turn.
+             */
+            async function handleIDontKnowTurn() {
+                if (!state.lastStartingLetter) {
+                    addLog("ابتدا باید یک دور بازی انجام شود تا نوبت شما مشخص شود.", "error");
+                    return;
+                }
+                toggleLoading(true);
+                addLog(`شما این دور را رد کردید. هوش مصنوعی برای حرف «${state.lastStartingLetter}» شعر می‌گوید...`, "system");
+                state.aiScore += 5;
+                updateScore();
+
+                const aiResponse = await getAiVerse(state.lastStartingLetter);
+                handleAiResponse(aiResponse);
+                toggleLoading(false);
+            }
+            
+            /**
+             * Processes the AI's response and updates the game state.
+             * @param {{verse: string, poet: string}} aiResponse - The AI's response object.
+             */
+            function handleAiResponse(aiResponse) {
+                if (!aiResponse || aiResponse.poet === "خطا") {
+                    addLog(aiResponse?.verse || "پاسخ نامشخص از هوش مصنوعی", "error");
+                } else if (state.usedVerses.has(aiResponse.verse)) {
+                    addLog("عجب! هوش مصنوعی هم بیت تکراری گفت. نوبت شماست.", "error");
+                } else {
+                    state.usedVerses.add(aiResponse.verse);
+                    state.aiScore += 10;
+                    addLog(aiResponse, "ai");
+                    updateScore();
+                    state.lastStartingLetter = getLastLetter(aiResponse.verse);
+                }
+            }
+
+            /**
+             * Resets the game to its initial state.
+             */
+            function resetGame() {
+                state.playerScore = 0;
+                state.aiScore = 0;
+                state.usedVerses.clear();
+                state.lastStartingLetter = null;
+                dom.gameLog.innerHTML = '';
+                updateScore();
+                addLog("بازی از نو شروع شد! شما با یک بیت شعر شروع کنید.", "system");
+            }
+
+            /**
+             * Saves the API key to local storage and game state.
+             */
+            function saveApiKey() {
+                const key = dom.apiKeyInput.value.trim();
+                if (key) {
+                    state.apiKey = key;
+                    localStorage.setItem('geminiApiKey', key);
+                    addLog("کلید API با موفقیت ذخیره شد.", "system");
+                    dom.apiKeyModal.classList.add('hidden');
+                } else {
+                    addLog("کلید API نمی‌تواند خالی باشد.", "error");
+                }
+            }
+            
+            // Setup event listeners for all interactive elements.
+            dom.sendButton.addEventListener('click', handleUserTurn);
+            dom.idkButton.addEventListener('click', handleIDontKnowTurn);
+            dom.inputBox.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') handleUserTurn();
+            });
+            dom.settingsButton.addEventListener('click', () => dom.apiKeyModal.classList.remove('hidden'));
+            dom.cancelApiKeyButton.addEventListener('click', () => dom.apiKeyModal.classList.add('hidden'));
+            dom.newGameButton.addEventListener('click', resetGame);
+            dom.saveApiKeyButton.addEventListener('click', saveApiKey);
+            
+            // Initialize the application on page load.
+            const savedKey = localStorage.getItem('geminiApiKey');
+            if (savedKey) {
+                state.apiKey = savedKey;
+                addLog("کلید API از حافظه مرورگر بارگذاری شد.", "system");
+                addLog("سیستم آماده است. شما با یک بیت شعر شروع کنید.", "system");
+            } else {
+                addLog("کلید API تنظیم نشده است! لطفا از دکمه تنظیمات (چرخ‌دنده) برای وارد کردن کلید خود استفاده کنید.", "error");
+                dom.apiKeyModal.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
