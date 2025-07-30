@@ -31,14 +31,13 @@
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-
     <div id="app-container" class="w-full max-w-2xl mx-auto bg-white shadow-2xl rounded-lg flex flex-col h-[90vh] p-4 relative">
         <header class="text-center py-4 border-b">
             <h1 class="text-2xl font-bold text-gray-800">مشاعره با هوش مصنوعی</h1>
             <p id="score-label" class="text-lg font-semibold text-gray-600 mt-2">امتیاز: شما 0 - هوش مصنوعی 0</p>
             <div class="absolute top-4 left-4 flex space-x-2">
                 <button id="new-game-button" class="text-gray-500 hover:text-blue-600 transition-colors" title="بازی جدید">
-                     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5" />
                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 9a9 9 0 0114.13-5.13M20 15a9 9 0 01-14.13 5.13" />
                     </svg>
@@ -76,7 +75,7 @@
             <p class="text-gray-600 mb-4">برای استفاده از بازی، به کلید API گوگل (Gemini) نیاز دارید. این کلید در مرورگر شما ذخیره می‌شود.</p>
             <input type="password" id="api-key-input" placeholder="کلید API خود را اینجا وارد کنید" class="w-full p-2 border rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none">
             <div class="flex justify-end space-x-2 space-x-reverse">
-                 <button id="cancel-api-key-button" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400">انصراف</button>
+                <button id="cancel-api-key-button" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400">انصراف</button>
                 <button id="save-api-key-button" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700">ذخیره کلید</button>
             </div>
         </div>
@@ -107,6 +106,29 @@
                 lastStartingLetter: null,
                 apiKey: ''
             };
+
+            /**
+             * Extracts the last meaningful letter from a Persian verse.
+             * @param {string} verse - The Persian verse to process.
+             * @returns {string} The last meaningful letter.
+             */
+            function getLastLetter(verse) {
+                if (!verse || verse.length === 0) return null;
+                
+                // Remove punctuation, whitespace, and special characters
+                const cleanedVerse = verse.replace(/[.,،:;!?\s\u200c]+/g, '');
+                
+                // Find the last non-space, non-punctuation character
+                for (let i = cleanedVerse.length - 1; i >= 0; i--) {
+                    const char = cleanedVerse[i];
+                    // Check if it's a Persian letter (including ی and ک in their Persian forms)
+                    if (/[\u0600-\u06FF]/.test(char)) {
+                        return char;
+                    }
+                }
+                
+                return cleanedVerse.slice(-1) || null;
+            }
 
             /**
              * Appends a message to the game log with appropriate styling.
@@ -167,38 +189,56 @@
              */
             async function makeApiCall(prompt, temperature = 0.7, responseMimeType = "text/plain") {
                 if (!state.apiKey) {
-                    throw new Error("کلید API تنظیم نشده است.");
+                    throw new Error("کلید API تنظیم نشده است. لطفاً از تنظیمات، کلید خود را وارد کنید.");
                 }
+
                 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${state.apiKey}`;
                 const payload = {
                     contents: [{ parts: [{ text: prompt }] }],
                     generationConfig: {
-                        "temperature": temperature,
-                        "responseMimeType": responseMimeType
+                        temperature: temperature,
+                        responseMimeType: responseMimeType
                     }
                 };
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
 
-                if (!response.ok) {
-                    if (response.status === 503 || response.status === 429) {
-                        throw new Error("سرور هوش مصنوعی در حال حاضر شلوغ است. لطفا چند لحظه بعد دوباره تلاش کنید.");
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        let errorMessage = errorData.error?.message || `خطای HTTP! وضعیت: ${response.status}`;
+                        
+                        if (response.status === 400) {
+                            errorMessage = "کلید API نامعتبر است. لطفاً کلید جدیدی وارد کنید.";
+                        } else if (response.status === 429) {
+                            errorMessage = "محدودیت تعداد درخواست‌ها. لطفاً کمی صبر کنید.";
+                        } else if (response.status === 503) {
+                            errorMessage = "سرویس موقتاً در دسترس نیست. لطفاً بعداً تلاش کنید.";
+                        }
+                        
+                        throw new Error(errorMessage);
                     }
-                    const errorData = await response.json();
-                    throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
-                }
 
-                const data = await response.json();
-                if (data.candidates && data.candidates.length > 0) {
-                    return data.candidates[0].content.parts[0].text.trim();
+                    const data = await response.json();
+                    if (data.candidates && data.candidates.length > 0) {
+                        return data.candidates[0].content.parts[0].text.trim();
+                    }
+                    
+                    if (data.promptFeedback?.blockReason) {
+                        throw new Error(`درخواست شما به دلیل "${data.promptFeedback.blockReason}" مسدود شد.`);
+                    }
+                    
+                    throw new Error("پاسخ نامعتبر از سرور دریافت شد.");
+                } catch (error) {
+                    if (error.message.includes("Failed to fetch")) {
+                        throw new Error("اتصال به اینترنت برقرار نیست یا سرور پاسخ نمی‌دهد.");
+                    }
+                    throw error;
                 }
-                if (data.promptFeedback?.blockReason) {
-                    throw new Error(`درخواست توسط هوش مصنوعی به دلیل ${data.promptFeedback.blockReason} مسدود شد.`);
-                }
-                throw new Error("پاسخ نامعتبر از API دریافت شد.");
             }
             
             /**
@@ -207,10 +247,16 @@
              * @returns {Promise<boolean>} True if the verse is valid, false otherwise.
              */
             async function isVerseValid(verse) {
-                addLog("در حال اعتبارسنجی بیت شعر شما...", "system");
-                const prompt = `You are a strict Persian literature expert. Your only task is to determine if the following text is a valid line of Persian poetry (a full 'beyt' or a single 'mesra'). Respond with ONLY "YES" or "NO". Text to analyze: "${verse}"`;
-                const response = await makeApiCall(prompt, 0.1);
-                return response.toUpperCase().includes("YES") || response.includes("بله");
+                if (!verse || verse.trim().length === 0) return false;
+                
+                try {
+                    const prompt = `آیا متن زیر یک بیت معتبر شعر فارسی است؟ فقط پاسخ "بله" یا "خیر" بدهید:\n${verse}`;
+                    const response = await makeApiCall(prompt, 0.1);
+                    return response.includes("بله") || response.toUpperCase().includes("YES");
+                } catch (error) {
+                    console.error("Error validating verse:", error);
+                    return false;
+                }
             }
 
             /**
@@ -219,23 +265,25 @@
              * @returns {Promise<{verse: string, poet: string}>} An object containing the verse and poet.
              */
             async function getAiVerse(startingLetter) {
+                if (!startingLetter) {
+                    return { verse: "خطا: حرف شروع مشخص نیست", poet: "خطا" };
+                }
+
                 const usedVersesText = Array.from(state.usedVerses).join("\n");
-                const prompt = `You are a Persian poetry expert for a game. Provide a famous Persian verse starting with the letter '${startingLetter}'. The verse must not be in this list:\n${usedVersesText}\nYou MUST respond with ONLY a valid JSON object in the format: {"verse": "the poetry line", "poet": "the poet's name"}.`;
+                const prompt = `یک بیت معروف شعر فارسی که با حرف '${startingLetter}' شروع می‌شود ارائه دهید. این بیت نباید در لیست زیر باشد:\n${usedVersesText}\nپاسخ را فقط به صورت JSON با فرمت زیر برگردانید:\n{"verse": "متن شعر", "poet": "نام شاعر"}`;
                 
                 try {
                     const responseText = await makeApiCall(prompt, 0.8, "application/json");
                     const responseObject = JSON.parse(responseText);
+                    
                     if (responseObject.verse && responseObject.poet) {
                         return responseObject;
                     }
+                    throw new Error("پاسخ نامعتبر از هوش مصنوعی دریافت شد.");
                 } catch (error) {
-                     // The makeApiCall function already handles most errors, this is a fallback.
-                    console.error("Error getting or parsing AI verse:", error);
-                    return { verse: error.message, poet: "خطا" };
+                    console.error("Error getting AI verse:", error);
+                    return { verse: error.message || "خطا در دریافت پاسخ از هوش مصنوعی", poet: "خطا" };
                 }
-                
-                // This should rarely be reached.
-                return { verse: "هوش مصنوعی نتوانست پاسخ مناسبی پیدا کند.", poet: "خطا" };
             }
 
             /**
@@ -243,34 +291,48 @@
              */
             async function handleUserTurn() {
                 const userVerse = dom.inputBox.value.trim();
-                if (!userVerse) return;
+                if (!userVerse) {
+                    addLog("لطفاً یک بیت شعر وارد کنید.", "error");
+                    return;
+                }
 
                 toggleLoading(true);
                 dom.inputBox.value = '';
 
                 try {
-                    if (!await isVerseValid(userVerse)) {
-                        throw new Error("این یک بیت شعر معتبر به نظر نمی‌رسد. لطفا دوباره تلاش کنید.");
-                    }
-                    if (state.lastStartingLetter && userVerse[0] !== state.lastStartingLetter) {
-                        throw new Error(`خطا! بیت شما باید با حرف «${state.lastStartingLetter}» شروع می‌شد.`);
-                    }
-                    if (state.usedVerses.has(userVerse)) {
-                        throw new Error("این بیت قبلا استفاده شده! لطفا یک بیت دیگر بگویید.");
+                    // Validate the verse
+                    addLog("در حال بررسی بیت شعر شما...", "system");
+                    const isValid = await isVerseValid(userVerse);
+                    if (!isValid) {
+                        throw new Error("این یک بیت شعر معتبر به نظر نمی‌رسد. لطفاً دوباره تلاش کنید.");
                     }
 
+                    // Check starting letter
+                    if (state.lastStartingLetter && userVerse[0] !== state.lastStartingLetter) {
+                        throw new Error(`بیت شما باید با حرف «${state.lastStartingLetter}» شروع می‌شد.`);
+                    }
+
+                    // Check for duplicates
+                    if (state.usedVerses.has(userVerse)) {
+                        throw new Error("این بیت قبلاً استفاده شده است! لطفاً بیت دیگری بگویید.");
+                    }
+
+                    // Add to log and used verses
                     addLog(userVerse, "user");
                     state.usedVerses.add(userVerse);
 
+                    // Get last letter for AI's turn
                     const lastChar = getLastLetter(userVerse);
                     if (!lastChar) {
-                        throw new Error("بیت شما معتبر به نظر نمی‌رسد. لطفا دوباره تلاش کنید.");
+                        throw new Error("نمی‌توان حرف آخر بیت را تشخیص داد. لطفاً بیت معتبر دیگری وارد کنید.");
                     }
 
+                    // Update score
                     state.playerScore += 10;
                     updateScore();
-                    addLog(`...هوش مصنوعی برای حرف '${lastChar}' در حال فکر کردن است`, "system");
+                    addLog(`هوش مصنوعی در حال فکر کردن برای حرف «${lastChar}»...`, "system");
 
+                    // Get AI response
                     const aiResponse = await getAiVerse(lastChar);
                     handleAiResponse(aiResponse);
 
@@ -286,17 +348,23 @@
              */
             async function handleIDontKnowTurn() {
                 if (!state.lastStartingLetter) {
-                    addLog("ابتدا باید یک دور بازی انجام شود تا نوبت شما مشخص شود.", "error");
+                    addLog("ابتدا باید یک بیت شعر بگویید تا بازی شروع شود.", "error");
                     return;
                 }
+
                 toggleLoading(true);
                 addLog(`شما این دور را رد کردید. هوش مصنوعی برای حرف «${state.lastStartingLetter}» شعر می‌گوید...`, "system");
-                state.aiScore += 5;
-                updateScore();
-
-                const aiResponse = await getAiVerse(state.lastStartingLetter);
-                handleAiResponse(aiResponse);
-                toggleLoading(false);
+                
+                try {
+                    state.aiScore += 5;
+                    updateScore();
+                    const aiResponse = await getAiVerse(state.lastStartingLetter);
+                    handleAiResponse(aiResponse);
+                } catch (error) {
+                    addLog(error.message, "error");
+                } finally {
+                    toggleLoading(false);
+                }
             }
             
             /**
@@ -306,14 +374,24 @@
             function handleAiResponse(aiResponse) {
                 if (!aiResponse || aiResponse.poet === "خطا") {
                     addLog(aiResponse?.verse || "پاسخ نامشخص از هوش مصنوعی", "error");
-                } else if (state.usedVerses.has(aiResponse.verse)) {
-                    addLog("عجب! هوش مصنوعی هم بیت تکراری گفت. نوبت شماست.", "error");
-                } else {
-                    state.usedVerses.add(aiResponse.verse);
-                    state.aiScore += 10;
-                    addLog(aiResponse, "ai");
-                    updateScore();
-                    state.lastStartingLetter = getLastLetter(aiResponse.verse);
+                    return;
+                }
+
+                if (state.usedVerses.has(aiResponse.verse)) {
+                    addLog("هوش مصنوعی یک بیت تکراری گفت! نوبت شماست.", "error");
+                    return;
+                }
+
+                // Add AI's verse to used verses
+                state.usedVerses.add(aiResponse.verse);
+                state.aiScore += 10;
+                addLog(aiResponse, "ai");
+                updateScore();
+
+                // Set the last starting letter for user's turn
+                state.lastStartingLetter = getLastLetter(aiResponse.verse);
+                if (!state.lastStartingLetter) {
+                    addLog("خطا در تشخیص حرف شروع برای دور بعدی", "error");
                 }
             }
 
@@ -327,7 +405,7 @@
                 state.lastStartingLetter = null;
                 dom.gameLog.innerHTML = '';
                 updateScore();
-                addLog("بازی از نو شروع شد! شما با یک بیت شعر شروع کنید.", "system");
+                addLog("بازی جدید شروع شد! شما با یک بیت شعر شروع کنید.", "system");
             }
 
             /**
@@ -335,37 +413,57 @@
              */
             function saveApiKey() {
                 const key = dom.apiKeyInput.value.trim();
-                if (key) {
-                    state.apiKey = key;
-                    localStorage.setItem('geminiApiKey', key);
-                    addLog("کلید API با موفقیت ذخیره شد.", "system");
-                    dom.apiKeyModal.classList.add('hidden');
-                } else {
+                if (!key) {
                     addLog("کلید API نمی‌تواند خالی باشد.", "error");
+                    return;
                 }
+
+                toggleLoading(true);
+                
+                // Test the API key before saving
+                makeApiCall("سلام", 0.1)
+                    .then(() => {
+                        state.apiKey = key;
+                        localStorage.setItem('geminiApiKey', key);
+                        addLog("کلید API با موفقیت ذخیره شد.", "system");
+                        dom.apiKeyModal.classList.add('hidden');
+                    })
+                    .catch(error => {
+                        addLog(`کلید نامعتبر: ${error.message}`, "error");
+                    })
+                    .finally(() => {
+                        toggleLoading(false);
+                    });
             }
             
-            // Setup event listeners for all interactive elements.
+            // Setup event listeners
             dom.sendButton.addEventListener('click', handleUserTurn);
             dom.idkButton.addEventListener('click', handleIDontKnowTurn);
             dom.inputBox.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter') handleUserTurn();
             });
-            dom.settingsButton.addEventListener('click', () => dom.apiKeyModal.classList.remove('hidden'));
+            dom.settingsButton.addEventListener('click', () => {
+                dom.apiKeyInput.value = state.apiKey || '';
+                dom.apiKeyModal.classList.remove('hidden');
+            });
             dom.cancelApiKeyButton.addEventListener('click', () => dom.apiKeyModal.classList.add('hidden'));
             dom.newGameButton.addEventListener('click', resetGame);
             dom.saveApiKeyButton.addEventListener('click', saveApiKey);
             
-            // Initialize the application on page load.
-            const savedKey = localStorage.getItem('geminiApiKey');
-            if (savedKey) {
-                state.apiKey = savedKey;
-                addLog("کلید API از حافظه مرورگر بارگذاری شد.", "system");
-                addLog("سیستم آماده است. شما با یک بیت شعر شروع کنید.", "system");
-            } else {
-                addLog("کلید API تنظیم نشده است! لطفا از دکمه تنظیمات (چرخ‌دنده) برای وارد کردن کلید خود استفاده کنید.", "error");
-                dom.apiKeyModal.classList.remove('hidden');
+            // Initialize the game
+            function initGame() {
+                const savedKey = localStorage.getItem('geminiApiKey');
+                if (savedKey) {
+                    state.apiKey = savedKey;
+                    addLog("کلید API از حافظه مرورگر بارگذاری شد.", "system");
+                    addLog("شما می‌توانید بازی را با گفتن یک بیت شعر شروع کنید.", "system");
+                } else {
+                    addLog("لطفاً کلید API Gemini را وارد کنید.", "error");
+                    dom.apiKeyModal.classList.remove('hidden');
+                }
             }
+
+            initGame();
         });
     </script>
 </body>
